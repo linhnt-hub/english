@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Học tiếng Anh — Flashcards & Quản lý từ</title>
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#ffffff; --muted:#6b7280; --accent:#2563eb;
+      --danger:#ef4444; --success:#16a34a;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:linear-gradient(180deg,var(--bg),#eef2ff); min-height:100vh;
+      color:#0f172a; padding:20px; -webkit-font-smoothing:antialiased;
+    }
+    .wrap{ max-width:1100px; margin:0 auto; }
+    header{ margin-bottom:14px; }
+    h1{ margin:0; font-size:1.5rem; }
+    .meta{ color:var(--muted); font-size:0.95rem; margin-top:6px; }
+
+    .block{ background:var(--card); border-radius:12px; padding:16px; box-shadow: 0 6px 18px rgba(16,24,40,0.06); margin-bottom:14px; }
+
+    /* Study card */
+    .study{ display:flex; flex-direction:column; gap:12px; align-items:center; text-align:center; }
+    .flashcard{
+      width:100%; max-width:760px; min-height:150px; border-radius:12px; padding:20px;
+      display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;
+      box-shadow: 0 10px 30px rgba(2,6,23,0.06); background:linear-gradient(180deg,#fff,#f8fafc);
+      font-size:1.5rem; font-weight:700;
+    }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+
+    /* Table */
+    .table-wrap{ overflow:auto; }
+    table{ width:100%; border-collapse:collapse; min-width:720px; }
+    th,td{ padding:10px 12px; border-bottom:1px solid #eef2ff; text-align:left; vertical-align:middle; }
+    th{ background:#fbfdff; font-weight:700; color:#0f172a; position:sticky; top:0; z-index:1; }
+    tr.learned td{ background: linear-gradient(90deg, rgba(22,163,74,0.06), rgba(255,255,255,0)); }
+    .status-pill{ display:inline-block; padding:6px 8px; border-radius:999px; font-size:0.85rem; font-weight:600; }
+    .pill-learned{ background:rgba(22,163,74,0.12); color:var(--success); }
+    .pill-not{ background:rgba(37,99,235,0.06); color:var(--accent); }
+
+    /* Form */
+    .form-row{ display:flex; gap:8px; margin-bottom:10px; }
+    input[type="text"], textarea, select{ padding:10px 12px; border-radius:8px; border:1px solid #e6e9f0; font-size:0.95rem; width:100%; }
+    textarea{ min-height:64px; resize:vertical; }
+
+    button{
+      background:var(--accent); color:#fff; border:none; padding:10px 12px; border-radius:8px; cursor:pointer; font-weight:600;
+    }
+    button.ghost{ background:transparent; color:var(--accent); border:1px solid #dbeafe; }
+    button.danger{ background:var(--danger); }
+    button.small{ padding:8px 10px; font-size:0.9rem; }
+    .muted{ color:var(--muted); font-size:0.95rem; }
+
+    .top-right{ display:flex; gap:8px; align-items:center; }
+
+    /* Responsive */
+    @media (max-width:900px){
+      .flashcard{ font-size:1.2rem; padding:16px; }
+      table{ min-width:600px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Học tiếng Anh — Flashcards & Quản lý từ</h1>
+      <div class="meta">Chế độ học ở trên → Bảng từ (đã học/chưa học) → Quản lý từ ở dưới. Dữ liệu lưu trong trình duyệt (localStorage).</div>
+    </header>
+
+    <!-- STUDY -->
+    <section class="block" id="studyBlock">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
+        <div>
+          <strong>Chế độ học</strong>
+          <div class="muted">Click vào flashcard để lật — khi bạn lật để xem nghĩa, từ sẽ tự động được đánh dấu "Đã học".</div>
+        </div>
+        <div class="top-right">
+          <div class="muted">Tổng từ: <span id="totalCount">0</span></div>
+        </div>
+      </div>
+
+      <div class="study">
+        <div id="flashcard" class="flashcard" tabindex="0" title="Click hoặc bấm Space để lật">
+          <div id="cardText">Chưa có từ — thêm vài từ để bắt đầu</div>
+        </div>
+
+        <div class="controls">
+          <button id="prevBtn" class="ghost small">‹ Trước</button>
+          <button id="flipBtn" class="small">Lật</button>
+          <button id="nextBtn" class="small">Tiếp ›</button>
+          <label style="display:inline-flex; align-items:center; gap:8px; color:var(--muted); font-weight:600;">
+            <input id="randomToggle" type="checkbox" /> Random
+          </label>
+          <label style="display:inline-flex; align-items:center; gap:8px; color:var(--muted); font-weight:600;">
+            <input id="autoMarkToggle" type="checkbox" checked /> Tự mark khi lật
+          </label>
+        </div>
+
+        <div style="display:flex; gap:12px; justify-content:center; width:100%;">
+          <div class="muted">Hiện: <span id="currentIndex">0</span> / <span id="totalIndex">0</span></div>
+          <div class="muted">Chế độ: <span id="showMode">Từ → Nghĩa</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABLE -->
+    <section class="block" id="tableBlock">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+        <div>
+          <strong>Danh sách từ (bảng)</strong>
+          <div class="muted">Xem / lọc / đánh dấu trạng thái Đã học / Chưa học.</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input id="tableSearch" type="text" placeholder="Tìm từ hoặc nghĩa..." style="padding:8px 10px; border-radius:8px; border:1px solid #e6e9f0;" />
+          <select id="filterSelect" style="padding:8px 10px; border-radius:8px; border:1px solid #e6e9f0;">
+            <option value="all">Tất cả</option>
+            <option value="learned">Đã học</option>
+            <option value="not">Chưa học</option>
+          </select>
+          <select id="sortSelect" style="padding:8px 10px; border-radius:8px; border:1px solid #e6e9f0;">
+            <option value="recent">Mới thêm</option>
+            <option value="alpha">A → Z</option>
+            <option value="revalpha">Z → A</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="vocabTable" aria-live="polite">
+          <thead>
+            <tr>
+              <th style="width:18%">Từ</th>
+              <th style="width:40%">Nghĩa / Ghi chú</th>
+              <th style="width:16%">Trạng thái</th>
+              <th style="width:26%">Hành động</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MANAGEMENT -->
+    <section class="block" id="manageBlock">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div>
+          <strong>Quản lý từ</strong>
+          <div class="muted">Thêm / Sửa / Import / Export hoặc Xoá toàn bộ.</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button id="exportBtn" class="small">Export JSON</button>
+          <label for="importFile" class="ghost small" style="cursor:pointer; padding:8px 10px; border-radius:8px; border:1px dashed #e6eefc;">Import</label>
+          <input id="importFile" type="file" accept=".json" style="display:none" />
+          <button id="clearAll" class="danger small">Xoá hết</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="form-row" style="margin-bottom:8px;">
+          <input id="inputWord" type="text" placeholder="Từ tiếng Anh (ví dụ: apple)" />
+          <input id="inputPron" type="text" placeholder="Phiên âm / phát âm (tùy chọn)" style="width:220px;" />
+        </div>
+        <div class="form-row">
+          <textarea id="inputMean" placeholder="Nghĩa / ví dụ / ghi chú..."></textarea>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button id="addBtn" class="small">Thêm / Cập nhật</button>
+          <button id="clearForm" class="ghost small">Hủy</button>
+          <div class="muted" style="align-self:center;">(Khi sửa, chọn Edit trong bảng — form sẽ nhận dữ liệu.)</div>
+        </div>
+      </div>
+    </section>
+
+    <footer style="text-align:center; margin-top:6px;" class="muted">Trang chạy hoàn toàn trên trình duyệt. Không gửi dữ liệu ra nơi khác.</footer>
+  </div>
+
+  <script>
+    // STORAGE KEY
+    const STORAGE_KEY = 'vocab_flash_v2';
+
+    // Elements
+    const inputWord = document.getElementById('inputWord');
+    const inputPron = document.getElementById('inputPron');
+    const inputMean = document.getElementById('inputMean');
+    const addBtn = document.getElementById('addBtn');
+    const clearForm = document.getElementById('clearForm');
+
+    const exportBtn = document.getElementById('exportBtn');
+    const importFile = document.getElementById('importFile');
+    const clearAll = document.getElementById('clearAll');
+
+    const tableBody = document.getElementById('tableBody');
+    const tableSearch = document.getElementById('tableSearch');
+    const filterSelect = document.getElementById('filterSelect');
+    const sortSelect = document.getElementById('sortSelect');
+
+    const flashcard = document.getElementById('flashcard');
+    const cardText = document.getElementById('cardText');
+    const flipBtn = document.getElementById('flipBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const randomToggle = document.getElementById('randomToggle');
+    const autoMarkToggle = document.getElementById('autoMarkToggle');
+
+    const totalCount = document.getElementById('totalCount');
+    const currentIndexLabel = document.getElementById('currentIndex');
+    const totalIndexLabel = document.getElementById('totalIndex');
+    const showModeLabel = document.getElementById('showMode');
+
+    // Data model: array of {id, word, pron, meaning, created, learned(boolean), learnedAt}
+    let vocab = [];
+    let studyOrder = []; // indexes into vocab
+    let current = 0;
+    let showingMeaning = false;
+    let editingId = null;
+
+    // UTIL
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+    const save = () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vocab));
+      renderTable();
+    };
+    const load = () => {
+      try {
+        vocab = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') || [];
+      } catch (e) { vocab = []; }
+    };
+
+    const escapeHtml = (s) => {
+      if (!s && s !== 0) return '';
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    };
+
+    // RENDER TABLE
+    function renderTable() {
+      const q = tableSearch.value.trim().toLowerCase();
+      let items = vocab.slice();
+      // filter
+      const f = filterSelect.value;
+      if (f === 'learned') items = items.filter(i => i.learned);
+      else if (f === 'not') items = items.filter(i => !i.learned);
+      // search
+      if (q) items = items.filter(i => (i.word||'').toLowerCase().includes(q) || (i.meaning||'').toLowerCase().includes(q) || (i.pron||'').toLowerCase().includes(q));
+      // sort
+      const s = sortSelect.value;
+      if (s === 'alpha') items.sort((a,b)=>a.word.localeCompare(b.word));
+      else if (s === 'revalpha') items.sort((a,b)=>b.word.localeCompare(a.word));
+      else items.sort((a,b)=>b.created - a.created);
+
+      tableBody.innerHTML = '';
+      for (const it of items) {
+        const tr = document.createElement('tr');
+        if (it.learned) tr.classList.add('learned');
+        tr.innerHTML = `
+          <td>
+            <div style="font-weight:700">${escapeHtml(it.word)}</div>
+            <div class="muted" style="margin-top:6px;">${escapeHtml(it.pron || '')}</div>
+          </td>
+          <td>${escapeHtml(it.meaning || '')}</td>
+          <td>
+            <div class="status-pill ${it.learned ? 'pill-learned' : 'pill-not'}">
+              ${it.learned ? 'Đã học' : 'Chưa học'}
+              ${it.learned && it.learnedAt ? `<div class="muted" style="font-size:0.75rem; margin-top:6px;">${new Date(it.learnedAt).toLocaleString()}</div>` : ''}
+            </div>
+          </td>
+          <td>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button data-action="toggle" data-id="${it.id}" class="small ghost">${it.learned ? 'Bỏ mark' : 'Mark đã học'}</button>
+              <button data-action="edit" data-id="${it.id}" class="small ghost">Sửa</button>
+              <button data-action="del" data-id="${it.id}" class="small ghost">Xóa</button>
+            </div>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      }
+
+      totalCount.textContent = vocab.length;
+      updateStudyLabels();
+    }
+
+    // ADD / UPDATE
+    addBtn.addEventListener('click', ()=>{
+      const w = inputWord.value.trim();
+      if (!w) return alert('Điền từ tiếng Anh trước.');
+      const p = inputPron.value.trim();
+      const m = inputMean.value.trim();
+
+      if (editingId) {
+        const idx = vocab.findIndex(x => x.id === editingId);
+        if (idx !== -1) {
+          vocab[idx].word = w;
+          vocab[idx].pron = p;
+          vocab[idx].meaning = m;
+        }
+        editingId = null;
+      } else {
+        // prevent duplicate by exact word (case-insensitive)
+        const exists = vocab.find(x => x.word.toLowerCase() === w.toLowerCase());
+        if (exists) {
+          if (!confirm('Từ đã tồn tại. Bạn muốn tạo thêm bản sao (OK) hay cập nhật (Cancel)?')) {
+            // create duplicate
+            vocab.unshift({ id: uid(), word: w, pron: p, meaning: m, created: Date.now(), learned:false, learnedAt:null });
+          } else {
+            // update existing
+            exists.pron = p;
+            exists.meaning = m;
+          }
+        } else {
+          vocab.unshift({ id: uid(), word: w, pron: p, meaning: m, created: Date.now(), learned:false, learnedAt:null });
+        }
+      }
+      save();
+      clearFormFields();
+      buildOrder();
+    });
+
+    clearForm.addEventListener('click', ()=>{
+      editingId = null;
+      clearFormFields();
+    });
+
+    function clearFormFields(){
+      inputWord.value = '';
+      inputPron.value = '';
+      inputMean.value = '';
+      inputWord.focus();
+      addBtn.textContent = 'Thêm / Cập nhật';
+    }
+
+    // Table actions (delegate)
+    tableBody.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      const idx = vocab.findIndex(x => x.id === id);
+      if (idx === -1) return;
+      if (action === 'toggle') {
+        vocab[idx].learned = !vocab[idx].learned;
+        vocab[idx].learnedAt = vocab[idx].learned ? Date.now() : null;
+        save();
+      } else if (action === 'edit') {
+        editingId = id;
+        inputWord.value = vocab[idx].word;
+        inputPron.value = vocab[idx].pron || '';
+        inputMean.value = vocab[idx].meaning || '';
+        addBtn.textContent = 'Lưu thay đổi';
+        window.scrollTo({top: document.getElementById('manageBlock').offsetTop - 20, behavior:'smooth'});
+      } else if (action === 'del') {
+        if (!confirm('Xóa từ này?')) return;
+        vocab.splice(idx,1);
+        save();
+        buildOrder();
+      }
+    });
+
+    // EXPORT / IMPORT / CLEAR ALL
+    exportBtn.addEventListener('click', ()=>{
+      const dataStr = JSON.stringify(vocab, null, 2);
+      const blob = new Blob([dataStr], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'vocab_export.json'; document.body.appendChild(a);
+      a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    importFile.addEventListener('change', async (ev) => {
+      const f = ev.target.files[0];
+      if (!f) return;
+      try {
+        const txt = await f.text();
+        const imported = JSON.parse(txt);
+        if (!Array.isArray(imported)) throw new Error('File không đúng định dạng (cần array of items)');
+        const existingWords = new Set(vocab.map(v=>v.word.toLowerCase()));
+        let added = 0;
+        for (const it of imported) {
+          if (!it.word) continue;
+          if (existingWords.has(it.word.toLowerCase())) continue;
+          vocab.push({ id: uid(), word: it.word, pron: it.pron || '', meaning: it.meaning || '', created: it.created || Date.now(), learned: !!it.learned, learnedAt: it.learnedAt || null });
+          added++;
+        }
+        save();
+        alert('Imported ' + added + ' từ.');
+      } catch (err) {
+        alert('Lỗi khi import: ' + err.message);
+      } finally {
+        importFile.value = '';
+      }
+    });
+
+    clearAll.addEventListener('click', ()=>{
+      if (!confirm('Xóa toàn bộ danh sách từ?')) return;
+      vocab = [];
+      save();
+      buildOrder();
+    });
+
+    // SEARCH / FILTER / SORT
+    tableSearch.addEventListener('input', renderTable);
+    filterSelect.addEventListener('change', renderTable);
+    sortSelect.addEventListener('change', renderTable);
+
+    // STUDY: order and display
+    function buildOrder() {
+      studyOrder = vocab.map((_,i)=>i);
+      if (randomToggle.checked) {
+        for (let i=studyOrder.length-1;i>0;i--){
+          const j = Math.floor(Math.random()*(i+1));
+          [studyOrder[i],studyOrder[j]] = [studyOrder[j],studyOrder[i]];
+        }
+      }
+      current = 0;
+      showingMeaning = false;
+      updateStudyLabels();
+    }
+
+    function updateStudyLabels() {
+      totalIndexLabel.textContent = studyOrder.length;
+      currentIndexLabel.textContent = studyOrder.length ? (current+1) : 0;
+      showModeLabel.textContent = showingMeaning ? 'Nghĩa → Từ' : 'Từ → Nghĩa';
+      showCurrentCard();
+    }
+
+    function showCurrentCard(){
+      if (!studyOrder.length) {
+        cardText.innerHTML = 'Chưa có từ nào — Thêm vài từ để bắt đầu';
+        return;
+      }
+      const idx = studyOrder[current];
+      const it = vocab[idx];
+      if (!it) { cardText.textContent = '—'; return; }
+      if (!showingMeaning) {
+        cardText.innerHTML = `<div style="font-size:1.4rem">${escapeHtml(it.word)}</div><div class="muted" style="font-size:0.9rem;margin-top:8px;">${escapeHtml(it.pron || '')}</div><div class="muted" style="font-size:0.85rem;margin-top:8px;">Click hoặc bấm Lật để xem nghĩa</div>`;
+      } else {
+        cardText.innerHTML = `<div style="font-size:1.05rem; font-weight:700">${escapeHtml(it.meaning || '(Không có ghi chú)')}</div><div class="muted" style="margin-top:8px;">(${escapeHtml(it.word)})</div>`;
+      }
+    }
+
+    // flip behavior
+    flipBtn.addEventListener('click', ()=> {
+      toggleFlip();
+    });
+    flashcard.addEventListener('click', ()=> {
+      toggleFlip();
+    });
+
+    function toggleFlip() {
+      if (!studyOrder.length) return;
+      showingMeaning = !showingMeaning;
+      // if we show meaning and autoMarkToggle checked => mark as learned
+      if (showingMeaning && autoMarkToggle.checked) {
+        const idx = studyOrder[current];
+        if (idx !== undefined && vocab[idx]) {
+          if (!vocab[idx].learned) {
+            vocab[idx].learned = true;
+            vocab[idx].learnedAt = Date.now();
+            save();
+          }
+        }
+      }
+      updateStudyLabels();
+    }
+
+    prevBtn.addEventListener('click', ()=> {
+      if (!studyOrder.length) return;
+      current = (current - 1 + studyOrder.length) % studyOrder.length;
+      showingMeaning = false;
+      updateStudyLabels();
+    });
+
+    nextBtn.addEventListener('click', ()=> {
+      if (!studyOrder.length) return;
+      current = (current + 1) % studyOrder.length;
+      showingMeaning = false;
+      updateStudyLabels();
+    });
+
+    // Keyboard
+    document.addEventListener('keydown', (e)=>{
+      if (e.code === 'Space') { e.preventDefault(); toggleFlip(); }
+      else if (e.code === 'ArrowRight') { nextBtn.click(); }
+      else if (e.code === 'ArrowLeft') { prevBtn.click(); }
+    });
+
+    // When vocab array changes externally (other tab)
+    window.addEventListener('storage', (e)=>{
+      if (e.key === STORAGE_KEY) {
+        load(); renderTable(); buildOrder();
+      }
+    });
+
+    // INIT
+    load();
+    renderTable();
+    buildOrder();
+
+    // Helper: when vocabulary changes (save called), ensure studyOrder indices still valid
+    function rebuildIndices() {
+      // Because we store studyOrder as indexes, when vocab changes we re-build by ids to keep current position
+      // We'll try to keep current on the same word id if possible
+      const currentId = studyOrder.length ? (vocab[studyOrder[current]] ? vocab[studyOrder[current]].id : null) : null;
+      buildOrder();
+      if (currentId) {
+        const pos = studyOrder.findIndex(i => vocab[i] && vocab[i].id === currentId);
+        if (pos !== -1) current = pos;
+      }
+      updateStudyLabels();
+    }
+
+    // Update when save() is called: intercept save to also rebuild indices
+    const realSave = save;
+    save = function(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(vocab));
+      renderTable();
+      rebuildIndices();
+    };
+
+    // Expose a little helper to mark all as not learned (for convenience) - optional
+    window.markAllNotLearned = function(){
+      if (!confirm('Bỏ mark tất cả từ về Chưa học?')) return;
+      for (const v of vocab) { v.learned = false; v.learnedAt = null; }
+      save();
+    };
+  </script>
+</body>
+</html>
